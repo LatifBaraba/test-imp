@@ -1,10 +1,59 @@
-import { Button } from '@chakra-ui/react'
+import { getList } from '@/api'
+import PostCard from '@/components/card'
+import { createPost, storePosts } from '@/store/post'
+import {
+    Button,
+    FormControl,
+    FormHelperText,
+    FormLabel,
+    Input,
+    Modal,
+    ModalBody,
+    ModalCloseButton,
+    ModalContent,
+    ModalFooter,
+    ModalHeader,
+    ModalOverlay,
+    Spinner,
+    useDisclosure,
+} from '@chakra-ui/react'
 import Head from 'next/head'
-import Image from 'next/image'
-import { useSelector } from 'react-redux'
+import { useRef } from 'react'
+import { useForm } from 'react-hook-form'
+import { useQuery } from 'react-query'
+import { useDispatch, useSelector } from 'react-redux'
+import { uuid } from 'uuidv4'
 
 export default function Home() {
-    const count = useSelector(state => state.counter.value)
+    const { count, posts } = useSelector(state => state.counter)
+    const dispatch = useDispatch()
+    const { isOpen, onOpen, onClose } = useDisclosure()
+    const finalRef = useRef(null)
+    const {
+        register,
+        handleSubmit,
+        watch,
+        formState: { errors },
+    } = useForm()
+
+    const { data, isLoading } = useQuery(['list'], () => getList(), {
+        onSuccess: data => {
+            let newData = data.splice(1, 10)
+            dispatch(storePosts(newData))
+        },
+    })
+
+    const onSubmit = data => {
+        const payload = {
+            userId: uuid(),
+            id: uuid(),
+            title: data.title,
+            body: data.body,
+        }
+        dispatch(createPost(payload))
+        onClose()
+    }
+
     return (
         <>
             <Head>
@@ -14,9 +63,54 @@ export default function Home() {
                 <link rel='icon' href='/favicon.ico' />
             </Head>
             <main className=''>
-                <h1 className='text-3xl font-bold underline text-orange-400'>{count}</h1>
-                <Button colorScheme='blue'>Button</Button>
+                <div className='w-full flex p-4 border-b-4 gap-4'>
+                    <Button colorScheme='blue' onClick={onOpen}>
+                        Create New
+                    </Button>
+                </div>
+                <div className='w-full flex p-4 gap-4 flex-wrap'>
+                    {posts.length ? (
+                        <>
+                            {posts?.map((post, idx) => (
+                                <PostCard key={idx} post={post} />
+                            ))}
+                        </>
+                    ) : (
+                        <Spinner></Spinner>
+                    )}
+                </div>
             </main>
+
+            <Modal finalFocusRef={finalRef} isOpen={isOpen} onClose={onClose}>
+                <ModalOverlay />
+                <ModalContent>
+                    <ModalHeader>Modal Create</ModalHeader>
+                    <ModalCloseButton />
+                    <ModalBody>
+                        <form onSubmit={handleSubmit(onSubmit)}>
+                            <FormControl isRequired>
+                                <FormLabel>Title</FormLabel>
+                                <Input type='text' {...register('title', { required: true })} />
+                                {errors.title && <FormHelperText color='red'>Title is required.</FormHelperText>}
+                            </FormControl>
+                            <FormControl isRequired>
+                                <FormLabel>Body</FormLabel>
+                                <Input type='text' {...register('body', { required: true })} />
+                                {errors.body && <FormHelperText color='red'>Body is required.</FormHelperText>}
+                            </FormControl>
+                        </form>
+                    </ModalBody>
+
+                    <ModalFooter>
+                        <Button colorScheme='blue' mr={3} onClick={onClose}>
+                            Close
+                        </Button>
+                        <Button variant='ghost' isLoading={false} onClick={handleSubmit(onSubmit)}>
+                            Create
+                        </Button>
+                    </ModalFooter>
+                </ModalContent>
+            </Modal>
         </>
     )
 }
